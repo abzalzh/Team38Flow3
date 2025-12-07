@@ -42,7 +42,7 @@ TELEGRAM_BOT_TOKEN = "8270647703:AAErIAhAf7PlDe6kJdgdrZ7dqqB_ZFKaD8I"
 
 # --- AI CAMERA CONFIG ---
 # Using the path you provided. If this file is missing, it will fallback to standard YOLO.
-MODEL_PATH = "abzal/temp/runs/detect/train2/weights/best.pt" 
+MODEL_PATH = "C:/Users/abzal/temp/runs/detect/train2/weights/best.pt" 
 CAM_ID = "cam1"
 LOG_DIR = "logs"
 os.makedirs(LOG_DIR, exist_ok=True)
