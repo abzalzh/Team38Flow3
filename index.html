@@ -1,0 +1,1890 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>HydroAtlas — Единая ИИ-платформа</title>
+
+<!-- External Libraries (Chart.js for graphs, Leaflet for maps) -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<style>
+  /* =========================================
+     CORE THEME & VARIABLES
+     ========================================= */
+  :root{
+    --bg:#071427;
+    --panel:#0e2a45;
+    --card:#0f2f4a;
+    --muted:#9fb6c9;
+    --accent:#00c6ff; /* Bright Blue */
+    --good:#31ff62;
+    --warn:#ffcc00;
+    --bad:#ff4f4f;
+    --admin:#ff4f81; /* Admin Pink */
+    --radius:12px;
+    --maxw:1200px;
+  }
+
+  *{box-sizing:border-box}
+  body{
+    margin:0;
+    font-family:Inter, Arial, sans-serif;
+    background:linear-gradient(180deg,var(--bg),#031428);
+    color:#e6f7ff;
+    -webkit-font-smoothing:antialiased;
+    overflow-x: hidden;
+  }
+
+  /* =========================================
+     HEADER & NAVIGATION
+     ========================================= */
+  header{
+    position:sticky;top:0;z-index:1000;background:rgba(6,18,30,0.95);backdrop-filter: blur(6px);
+    border-bottom:1px solid rgba(255,255,255,0.03);
+  }
+  .nav{
+    max-width:var(--maxw);margin:0 auto;padding:12px 18px;display:flex;align-items:center;gap:18px; flex-wrap: wrap;
+  }
+  .brand{ display:flex;flex-direction:column; }
+  .title{
+    font-size:28px; font-weight:800; color:var(--accent); line-height:1; margin:0;
+    text-shadow:0 4px 28px rgba(0,198,255,0.12);
+  }
+  .subtitle{ font-size:11px;color:var(--muted);margin-top:2px; }
+
+  /* Navigation Tabs */
+  .tabs{margin-left:20px;display:flex;gap:8px;align-items:center; overflow-x: auto;}
+  .tab{
+    color:var(--muted);padding:8px 12px;border-radius:8px;text-decoration:none;cursor:pointer;font-size:14px; white-space: nowrap;
+  }
+  .tab.active{ color:#fff;background:rgba(0,198,255,0.1);font-weight:600; }
+  
+  /* Special Tabs */
+  .tab.db-link{ color: var(--admin); border: 1px solid rgba(255, 79, 129, 0.3); }
+  .tab.db-link.active{ background: rgba(255, 79, 129, 0.15); color: #fff; }
+
+  /* Expert Only Tab */
+  .tab.expert-link { 
+    display: none; 
+    color: var(--good); 
+    border: 1px solid rgba(49,255,98,0.3); 
+    font-weight: bold;
+  }
+  .tab.expert-link.visible { display: block; }
+  .tab.expert-link.active { background: rgba(49,255,98,0.15); color: #fff; }
+
+  .spacer{flex:1}
+  
+  /* User Auth Badge */
+  .auth-section { display: flex; align-items: center; gap: 12px; margin-left: auto; }
+  .user-status-badge {
+    padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 700; text-transform: uppercase;
+  }
+  .role-expert { background: rgba(0, 198, 255, 0.2); color: var(--accent); border: 1px solid var(--accent); }
+  .role-guest { background: rgba(159, 182, 201, 0.2); color: var(--muted); border: 1px solid var(--muted); }
+  .user-name { color: #fff; font-size: 14px; font-weight: 600; }
+  
+  .auth-btn {
+    background: var(--accent); color: #000; font-weight: 700; padding: 6px 14px;
+    border-radius: 6px; border: none; cursor: pointer; font-size: 13px;
+  }
+  .auth-btn:hover { background: #33d1ff; }
+  .logout-btn { background: rgba(255,255,255,0.1); color: #fff; }
+
+  /* =========================================
+     MAIN LAYOUT & CARDS
+     ========================================= */
+  .wrap{max-width:var(--maxw);margin:22px auto;padding:0 18px}
+  
+  section{display:none}
+  section.active{display:block;animation:fadeIn .28s ease}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+  .hero{background:linear-gradient(180deg, rgba(0,198,255,0.04), transparent); padding:22px;border-radius:var(--radius);margin-bottom:18px}
+  .hero h1{margin:0;color:var(--accent);font-size:36px}
+  .hero p{margin:8px 0 0;color:var(--muted)}
+
+  .card{background:var(--card);padding:20px;border-radius:12px;margin-bottom:16px;border:1px solid rgba(255,255,255,0.02)}
+  h2, h3{color:#cfefff;margin-top:0}
+  p, li{color:var(--muted);line-height:1.5}
+
+  /* =========================================
+     MAP & CONTROLS
+     ========================================= */
+  #map { width:100%; height:500px; border-radius:12px; margin-bottom:18px; border:1px solid rgba(255,255,255,0.05); }
+  
+  .login-wall {
+    display: none; 
+    text-align: center;
+    padding: 60px 20px;
+    background: rgba(15, 47, 74, 0.6);
+    border: 1px dashed var(--muted);
+    border-radius: 12px;
+    margin-bottom: 20px;
+  }
+  .login-wall h3 { font-size: 24px; color: var(--warn); margin-bottom: 10px; }
+  .login-wall p { margin-bottom: 20px; font-size: 16px; }
+
+  .map-controls { background:var(--card); padding:16px; border-radius:12px; margin-bottom:18px; }
+  .controls-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:12px; margin-bottom:12px; }
+  .control-group { display:flex; flex-direction:column; gap:6px; }
+  .control-group label { font-size:12px; color:var(--muted); }
+  
+  select, input:not(.db-input):not(.auth-input):not(.manage-input) {
+    background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); color:white;
+    padding:8px 12px; border-radius:6px; font-size:14px; width:100%;
+  }
+
+  /* =========================================
+     PRIORITY TABLE
+     ========================================= */
+  .priority-section { background:var(--card); padding:16px; border-radius:12px; margin-bottom:18px; }
+  .priority-table { width:100%; border-collapse:collapse; margin-top:12px; font-size:14px; }
+  .priority-table th { text-align:left; padding:12px; border-bottom:1px solid rgba(255,255,255,0.1); color:var(--accent); }
+  .priority-table td { padding:12px; border-bottom:1px solid rgba(255,255,255,0.03); color:#ccc; }
+  
+  .priority-badge { padding:4px 8px; border-radius:20px; font-size:11px; font-weight:700; display:inline-block; text-transform:uppercase; }
+  .priority-high { background:rgba(255,79,79,0.2); color:#ff6b6b; border:1px solid rgba(255,79,79,0.3); }
+  .priority-medium { background:rgba(255,204,0,0.2); color:#ffcc00; border:1px solid rgba(255,204,0,0.3); }
+  .priority-low { background:rgba(49,255,98,0.2); color:#31ff62; border:1px solid rgba(49,255,98,0.3); }
+  
+  .status-dot { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:6px; }
+  .status-1 { background:#00ff00; } .status-2 { background:#a0ff00; } .status-3 { background:#ffff00; } .status-4 { background:#ff8000; } .status-5 { background:#ff0000; }
+
+  /* =========================================
+     DETAIL & STATISTICS
+     ========================================= */
+  .detail-card { background:var(--card); padding:20px; border-radius:12px; margin-bottom:18px; display:none; border:1px solid var(--accent); }
+  .detail-card.active { display:block; }
+  .detail-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:16px; margin-top:16px; }
+  .detail-item { display:flex; flex-direction:column; gap:4px; }
+  .detail-label { font-size:12px; color:var(--muted); }
+  .detail-value { font-size:15px; color:#fff; font-weight:500; }
+  .btn-back { display:inline-flex; align-items:center; gap:8px; padding:8px 16px; background:rgba(255,255,255,0.05); color:#fff; border:none; border-radius:6px; cursor:pointer; }
+
+  .metric-box { background:rgba(0,0,0,0.3); padding:15px; border-radius:8px; text-align:center; }
+  .metric-value { font-size:24px; font-weight:700; color:var(--accent); margin-top:5px; }
+
+  /* =========================================
+     REGIONS GRID & STATIONS
+     ========================================= */
+  .regions-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-top:12px}
+  .region-tile{ background:linear-gradient(180deg, rgba(255,255,255,0.01), transparent); border:1px solid rgba(255,255,255,0.05); padding:16px; border-radius:10px; cursor:pointer; transition:transform .15s; }
+  .region-tile:hover{ transform:translateY(-4px); background:rgba(255,255,255,0.05); }
+  .region-title{font-weight:700;color:#dff6ff;margin:0 0 4px 0}
+  
+  .stations-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-top: 14px; }
+  .station-card {
+    background: rgba(255, 255, 255, 0.02); border-radius: 10px; padding: 14px; cursor: pointer; border: 1px solid rgba(255, 255, 255, 0.05); transition: transform 0.2s;
+  }
+  .station-card:hover { transform: translateY(-3px); background: rgba(255,255,255,0.05); }
+  .station-border-green { border-left: 4px solid var(--good); }
+  .station-border-yellow { border-left: 4px solid var(--warn); }
+  .station-border-red { border-left: 4px solid var(--bad); }
+  .station-name { font-weight: 700; color: #e8f9ff; margin-bottom: 5px; }
+  
+  .detail-wrap { max-width: 800px; margin: 20px auto; padding: 20px; background: var(--card); border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); }
+  #graph { width: 100%; height: 320px; margin-top: 20px; }
+
+  /* =========================================
+     AI ANALYZER
+     ========================================= */
+  .water-level-analyzer { background:var(--card); padding:20px; border-radius:12px; margin-bottom:18px; }
+  .analyzer-form { display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:16px; margin-bottom:20px; }
+  .analyzer-result { background:rgba(0,0,0,0.2); padding:20px; border-radius:8px; margin-top:20px; display:none; }
+  .analyzer-result.active { display:block; animation:fadeIn 0.3s ease; }
+  .risk-indicator { padding:8px 16px; border-radius:20px; font-weight:600; display:inline-block; margin-top:10px; }
+  .risk-low { background:rgba(49,255,98,0.2); color:#31ff62; }
+  .risk-high { background:rgba(255,79,79,0.2); color:#ff6b6b; }
+
+  /* =========================================
+     MANAGEMENT (EXPERT ADD OBJECT)
+     ========================================= */
+  .manage-form { background: rgba(0, 198, 255, 0.05); border: 1px solid var(--accent); padding: 20px; border-radius: 12px; }
+  .manage-input { 
+    background: rgba(0,0,0,0.4); border: 1px solid var(--muted); padding: 10px; border-radius: 6px; width: 100%; color: #fff; margin-bottom: 10px; 
+    font-size: 14px;
+  }
+  
+  /* =========================================
+     ADMIN/DATABASE (TERMINAL STYLE)
+     ========================================= */
+  .db-wrapper { background: #050505; min-height: 600px; border: 1px solid var(--admin); border-radius: 12px; padding: 20px; font-family: 'Courier New', monospace; }
+  .db-login-wrap { max-width: 350px; margin: 60px auto; text-align: center; padding: 30px; background: #111; border-radius: 8px; border:1px solid #333; }
+  .db-input { background: #111; border: 1px solid #444; color: var(--admin); margin-bottom: 10px; font-family:monospace; padding:10px; width:100%; box-sizing: border-box; }
+  .db-btn { background: var(--admin); color: #fff; border:none; width: 100%; padding: 10px; font-weight: bold; cursor: pointer; margin-top: 5px; font-family:monospace; }
+  .db-btn:hover { opacity: 0.8; }
+  
+  .db-tabs { display:flex; gap:15px; margin-bottom:20px; border-bottom:1px solid #333; padding-bottom:10px; }
+  .db-subtab { color:#666; cursor:pointer; font-weight:bold; padding:5px; }
+  .db-subtab.active { color:var(--admin); border-bottom:2px solid var(--admin); }
+  
+  .db-view { display:none; }
+  .db-view.active { display:block; }
+  
+  .db-table-container { overflow-x: auto; border: 1px solid #333; margin-top:15px; }
+  .db-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .db-table th { text-align: left; padding: 10px; background:#111; color: var(--admin); border-bottom: 2px solid var(--admin); }
+  .db-table td { padding: 10px; border-bottom: 1px solid #222; color: #ccc; word-break:break-all; }
+  .decrypted-text { color: var(--good); font-weight: bold; }
+  .encrypted-text { color: var(--warn); font-style: italic; opacity: 0.6; letter-spacing:1px; }
+  
+  /* =========================================
+     CHAT & MODAL
+     ========================================= */
+  .chat-card{ padding:0; height:500px; display:flex; flex-direction:column; }
+  #chatBox{ flex:1; padding:15px; overflow-y:auto; background:#0d2238; border-radius:12px 12px 0 0; }
+  .chat-input-row{ padding:12px; background:#0b1a2e; border-radius:0 0 12px 12px; display:flex; gap:10px; }
+
+  .modal { display: none; position: fixed; z-index: 2000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.8); backdrop-filter: blur(4px); justify-content: center; align-items: center; }
+  .modal-content { background: var(--panel); border: 1px solid rgba(0,198,255,0.3); border-radius: 16px; padding: 30px; width: 400px; max-width: 90%; text-align: center; position: relative; box-shadow: 0 0 30px rgba(0,198,255,0.15); }
+  .close-modal { position: absolute; top: 15px; right: 20px; color: var(--muted); cursor: pointer; font-size: 24px; }
+  .hidden-form { display: none; }
+  .error-msg { color: var(--bad); font-size: 13px; margin-top: 10px; }
+
+  /* =========================================
+     CAMERA STYLES (ADDED)
+     ========================================= */
+  .camera-modal { display:none; position:fixed; z-index:3000; left:0; top:0; width:100%; height:100%; background:rgba(0,0,0,0.9); flex-direction:column; justify-content:center; align-items:center; }
+  .camera-window { position:relative; width:90%; max-width:800px; background:#050505; border:2px solid var(--accent); border-radius:12px; overflow:hidden; box-shadow: 0 0 50px rgba(0, 198, 255, 0.3); }
+  .camera-header { padding:15px; background:var(--panel); display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #333; }
+  .camera-display { width:100%; height:auto; display:block; min-height:400px; background:#000 url('https://i.gifer.com/ZKZg.gif') no-repeat center center; background-size: 50px; }
+  
+  /* TEST CAMERA BUTTON (Last Tile) */
+  .tile-test-cam { border:1px solid #ff00cc; background:rgba(255,0,204,0.05); }
+  .tile-test-cam:hover { background:rgba(255,0,204,0.1); transform:translateY(-4px); box-shadow: 0 4px 20px rgba(255,0,204,0.2); }
+  
+  /* SHOW CAMERA BUTTON (Inside Object) */
+  .btn-cam-obj { background: rgba(0, 198, 255, 0.1); border: 1px solid var(--accent); color: var(--accent); padding: 6px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; margin-top: 8px; width: 100%; font-weight: 600; transition:0.2s; }
+  .btn-cam-obj:hover { background: var(--accent); color: #000; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="nav">
+    <div class="brand">
+      <div class="title">HydroAtlas</div>
+      <div class="subtitle">Единая ИИ-платформа для мониторинга воды и безопасности</div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <div class="tabs" role="tablist">
+      <div class="tab active" data-tab="home" onclick="openTab('home')">Главная</div>
+      <div class="tab" data-tab="regions" onclick="openTab('regions')">Области</div>
+      <div class="tab" data-tab="analyzer" onclick="openTab('analyzer')">ИИ-Анализ</div>
+      
+      <!-- Expert Only Tab: "Management" for adding objects -->
+      <div class="tab expert-link" id="manageTab" data-tab="manage" onclick="openTab('manage')">Управление (+Объект)</div>
+      
+      <div class="tab" data-tab="profile" onclick="openTab('profile')">Профиль</div>
+      <div class="tab" data-tab="assistant" onclick="openTab('assistant')">Ассистент</div>
+      
+      <!-- Database Tab -->
+      <div class="tab db-link" data-tab="database" onclick="openTab('database')">База Данных</div>
+    </div>
+
+    <div class="spacer"></div>
+    <!-- Auth Info Area -->
+    <div class="auth-section" id="authSection">
+      <!-- Injected by JS -->
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <!-- ================= 1. HOME (MAP & STATS) ================= -->
+  <section id="home" class="active">
+    <div class="hero card">
+      <h1>Карта водных ресурсов Казахстана</h1>
+      <p>Мониторинг состояния водоемов, ГЭС и гидротехнических сооружений в реальном времени. Включает ИИ-прогнозирование рисков.</p>
+    </div>
+
+    <!-- 1A. Login Wall (Visible if no account) -->
+    <div id="mapLoginWall" class="login-wall">
+      <h3>🔐 Доступ к карте ограничен</h3>
+      <p>Для просмотра интерактивной карты, статистики и использования инструментов анализа необходимо авторизоваться.</p>
+      <div style="display:flex; gap:15px; justify-content:center;">
+          <button class="auth-btn" style="font-size:16px; padding:10px 20px;" onclick="openAuthModal('login')">Войти</button>
+          <button class="auth-btn" style="font-size:16px; padding:10px 20px; background:transparent; border:1px solid #fff; color:#fff;" onclick="openAuthModal('register')">Регистрация</button>
+      </div>
+    </div>
+
+    <!-- 1B. Map Container (Restricted to logged in users) -->
+    <div id="mapContainer" style="display:none;">
+      <div id="map"></div>
+
+      <div class="map-controls">
+        <div class="controls-grid">
+          <div class="control-group">
+            <label>Регион</label>
+            <select id="filterRegion" onchange="applyFilters()"><option value="">Все регионы</option></select>
+          </div>
+          <div class="control-group">
+            <label>Тип объекта</label>
+            <select id="filterType" onchange="applyFilters()">
+              <option value="">Все типы</option>
+              <option value="озеро">Озеро</option>
+              <option value="водохранилище">Водохранилище</option>
+              <option value="ГЭС">ГЭС</option>
+              <option value="канал">Канал</option>
+              <option value="плотина">Плотина</option>
+              <option value="гидроузел">Гидроузел</option>
+            </select>
+          </div>
+          <!-- Priority Filter: Only for Experts -->
+          <div class="control-group expert-only" style="display:none">
+            <label>Приоритет (Expert)</label>
+            <select id="filterPriority" onchange="applyFilters()">
+              <option value="">Все приоритеты</option>
+              <option value="high">Высокий</option>
+              <option value="medium">Средний</option>
+              <option value="low">Низкий</option>
+            </select>
+          </div>
+        </div>
+        <div style="display:flex; gap:10px; margin-top:10px;">
+          <input type="text" id="searchInput" placeholder="Поиск по названию..." oninput="applyFilters()">
+          <button class="auth-btn" style="background:#333;" onclick="resetFilters()">Сбросить</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 1C. Priority Table (Strictly Expert Only) -->
+    <div class="card priority-section expert-only" style="display:none">
+      <h3>🚨 Приоритеты обследования (Топ 15) — Expert Access</h3>
+      <p style="font-size:12px; color:var(--muted)">
+          Этот раздел виден только пользователям со статусом Expert. Расчет рисков производится на основе ML-алгоритмов.
+      </p>
+      <table class="priority-table"> 
+        <thead>
+          <tr>
+            <th>Название</th>
+            <th>Регион</th>
+            <th>Тип</th>
+            
+            <!-- CLICKABLE HEADER: STATUS -->
+            <th style="cursor:pointer; user-select:none;" onclick="toggleSort('status')">
+                Состояние <span id="sort-status" style="color:var(--accent)"></span>
+            </th>
+            
+            <!-- CLICKABLE HEADER: PRIORITY -->
+            <th style="cursor:pointer; user-select:none;" onclick="toggleSort('priorityScore')">
+                Приоритет <span id="sort-priorityScore" style="color:var(--accent)">▼</span>
+            </th>
+            
+            <!-- CLICKABLE HEADER: ML PROBABILITY -->
+            <th style="cursor:pointer; user-select:none;" onclick="toggleSort('mlProb')">
+                ML Вероятность <span id="sort-mlProb" style="color:var(--accent)"></span>
+            </th>
+          </tr>
+        </thead>
+        <tbody id="prioritiesTable">
+            <!-- Populated by JS -->
+        </tbody>
+      </table>
+    </div>
+
+    <!-- 1D. Statistics (Visible to any logged in user) -->
+    <div class="card" id="statsCard" style="display:none;">
+      <h3>Статистика по водным ресурсам Казахстана</h3>
+      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:16px; margin-top:16px;">
+        <div class="metric-box">
+            <div style="color:var(--muted)">Всего объектов</div>
+            <div class="metric-value" id="totalObjects">0</div>
+        </div>
+        <div class="metric-box">
+            <div style="color:var(--muted)">Требуют внимания</div>
+            <div class="metric-value" style="color:#ff4f4f" id="criticalObjects">0</div>
+        </div>
+        <div class="metric-box">
+            <div style="color:var(--muted)">Средний статус</div>
+            <div class="metric-value" style="color:#ffcc00" id="avgStatus">0.0</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 1E. Detail Overlay (Popup for object details) -->
+    <div class="detail-card" id="detailCard">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+          <h3 id="detailTitle" style="color:#00c6ff; margin:0"></h3>
+          <button class="btn-back" onclick="closeDetails()">✕ Закрыть</button>
+      </div>
+      <div class="detail-grid" id="detailContent"></div>
+      <div style="margin-top:20px; display:flex; gap:12px;">
+         <!-- PDF BUTTON with static ID, logic attached in JS -->
+         <button id="pdfBtn" class="auth-btn">Скачать паспорт PDF</button>
+      </div>
+    </div>
+
+      <!-- TEXT SECTIONS -->
+    <div class="card">
+      <h2>О системе</h2>
+      <p><strong>HydroAtlas</strong> — интеллектуальная система, объединяющая два модуля:</p>
+      <ol>
+        <li>Прогноз уровня воды на 1–7 дней</li>
+        <li>Диагностика состояния гидростанций по фото с помощью искусственного интеллекта</li>
+      </ol>
+      <p>Система анализирует временные ряды уровня воды, осадки, температуру, приток, а также фотографии гидротехнических сооружений для выявления повреждений. Результаты автоматически отображаются в удобной панели мониторинга.</p>
+    </div>
+
+    <div class="card">
+      <h3>HydroAtlas предлагает</h3>
+      <ul>
+        <li>Ранний прогноз подъёма уровня воды (1–7 дней)</li>
+        <li>Обнаружение трещин, эрозии, утечек и деформаций по фото</li>
+        <li>Единый отчёт о рисках для ГТС и паводков</li>
+        <li>Рекомендации инженерам и спасательным службам</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h3>Основные потребители</h3>
+      <ul>
+        <li>Министерства ЧС</li>
+        <li>Водохранилища и ГЭС</li>
+        <li>Акиматы</li>
+        <li>Инженерные службы мониторинга</li>
+        <li>Экологические и научные организации</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>Анализ рынка — потребности</h2>
+      <p>Сегодня рынок гидробезопасности испытывает серьёзные проблемы:</p>
+      <ul>
+        <li>Отсутствие автоматического прогноза уровня воды</li>
+        <li>Слабый мониторинг состояния ГТС</li>
+        <li>Высокая зависимость от человеческого фактора</li>
+        <li>Рост частоты экстремальных погодных явлений</li>
+        <li>Недостаток цифровых решений для водного сектора</li>
+        <li>Необходимость в раннем обнаружении дефектов, чтобы избежать катастроф</li>
+      </ul>
+      <p>Государственные структуры активно ищут решения на базе ИИ и аналитики, что делает HydroAtlas особенно востребованным.</p>
+    </div>
+  </section>
+
+  <!-- ================= 2. REGIONS (MAIN GRID) ================= -->
+  <section id="regions">
+    <div class="card">
+      <h2>Области Казахстана</h2>
+      <p>Выберите область — откроется страница с гидросооружениями региона.</p>
+      <div class="regions-grid" id="regionsGrid"></div>
+    </div>
+  </section>
+
+  <!-- ================= REGION DETAIL (LIST OF STATIONS) ================= -->
+  <section id="regionPage">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px">
+        <h2 id="regionPageTitle">Регион</h2>
+        <button class="btn-back" onclick="openTab('regions')">← Назад к областям</button>
+      </div>
+      <div class="stations-grid" id="stationsGrid"></div>
+    </div>
+  </section>
+
+  <!-- ================= STATION GRAPH (WATER LEVEL CHART) ================= -->
+  <section id="stationPage">
+    <div class="detail-wrap">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px">
+        <h2 id="stationTitle">Название ГС</h2>
+        <button class="btn-back" onclick="openTab('regionPage')">← Назад к списку</button>
+      </div>
+      <div id="stationInfo" style="color:var(--muted);margin-top:6px"></div>
+      <div id="graph">
+        <canvas id="chartCanvas"></canvas>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 3. AI ANALYZER ================= -->
+  <section id="analyzer">
+    <div class="hero card">
+      <h1>ИИ-Анализатор уровня воды</h1>
+      <p>Прогноз изменения уровня воды на основе метеоданных и характеристик объекта</p>
+    </div>
+    <div class="water-level-analyzer">
+      <div class="analyzer-form">
+        <div class="control-group">
+          <label>Выберите объект</label>
+          <select id="analyzerObject" onchange="onAnalyzerObjectChange()">
+            <option value="">-- Выберите объект --</option>
+          </select>
+        </div>
+        <div class="control-group">
+            <label>Текущий уровень (м)</label>
+            <input type="number" id="currentLevel" step="0.1" placeholder="10.5">
+        </div>
+        <div class="control-group">
+            <label>Прогноз осадков</label>
+            <select id="rainForecast">
+                <option value="0">Без осадков (0 мм)</option>
+                <option value="5">Слабый дождь (5 мм)</option>
+                <option value="15">Умеренный дождь (15 мм)</option>
+                <option value="50">Ливень (50 мм)</option>
+            </select>
+        </div>
+        <div class="control-group">
+            <label>Температура (°C)</label>
+            <input type="number" id="temperature" value="15">
+        </div>
+      </div>
+      
+      <button onclick="analyzeWaterLevel()" class="auth-btn" style="width:100%">🧠 Запустить ИИ-анализ</button>
+      
+      <div class="analyzer-result" id="analyzerResult">
+        <h3 style="color:#00c6ff">Результат прогнозирования</h3>
+        <div class="result-metrics">
+            <div class="metric-box">
+                <div style="color:var(--muted)">Прогноз уровня</div>
+                <div class="metric-value" id="resultFinalLevel">0 м</div>
+            </div>
+            <div class="metric-box">
+                <div style="color:var(--muted)">Уровень риска</div>
+                <div id="resultRiskLevel" class="risk-indicator">Low</div>
+            </div>
+        </div>
+        <div id="resultRecommendations" style="margin-top:10px;color:#fff; padding:10px; background:rgba(0,0,0,0.2); border-radius:6px;"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 4. MANAGEMENT (EXPERT ADD OBJECT) ================= -->
+  <section id="manage">
+    <div class="card">
+      <h2 style="color:var(--good)">Добавление нового гидрообъекта</h2>
+      <p>Этот раздел доступен только пользователям со статусом <strong>Expert</strong>. Новый объект будет сохранен в SQL базе данных и сразу отобразится на карте.</p>
+      
+      <div class="manage-form">
+        <h4 style="color:#fff; margin-top:0">Паспортные данные объекта</h4>
+        
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:15px;">
+            <div>
+                <label style="color:var(--muted); font-size:12px;">Название объекта</label>
+                <input type="text" id="new_name" class="manage-input" placeholder="Например: Новое водохранилище">
+            </div>
+            <div>
+                <label style="color:var(--muted); font-size:12px;">Регион</label>
+                <select id="new_region" class="manage-input">
+                    <option value="Акмолинская область">Акмолинская область</option>
+                    <option value="Алматинская область">Алматинская область</option>
+                    <option value="ВКО">ВКО</option>
+                    <option value="Карагандинская область">Карагандинская область</option>
+                    <option value="Атырауская область">Атырауская область</option>
+                    <option value="Жамбылская область">Жамбылская область</option>
+                    <option value="Туркестанская область">Туркестанская область</option>
+                    <option value="СКО">СКО</option>
+                    <option value="Другой">Другой</option>
+                </select>
+            </div>
+            <div>
+                <label style="color:var(--muted); font-size:12px;">Тип</label>
+                <select id="new_type" class="manage-input">
+                    <option value="озеро">Озеро</option>
+                    <option value="водохранилище">Водохранилище</option>
+                    <option value="ГЭС">ГЭС</option>
+                    <option value="канал">Канал</option>
+                    <option value="плотина">Плотина</option>
+                </select>
+            </div>
+            <div>
+                <label style="color:var(--muted); font-size:12px;">Техническое состояние (1-5)</label>
+                <input type="number" id="new_status" class="manage-input" min="1" max="5" value="3" placeholder="1=Отлично, 5=Аварийно">
+            </div>
+            <div>
+                <label style="color:var(--muted); font-size:12px;">Широта (Lat)</label>
+                <input type="number" id="new_lat" class="manage-input" placeholder="48.0" step="0.0001">
+            </div>
+            <div>
+                <label style="color:var(--muted); font-size:12px;">Долгота (Lng)</label>
+                <input type="number" id="new_lng" class="manage-input" placeholder="72.0" step="0.0001">
+            </div>
+            <div>
+                <label style="color:var(--muted); font-size:12px;">Площадь / Мощность (опц.)</label>
+                <input type="text" id="new_area" class="manage-input" placeholder="Например: 100 км2">
+            </div>
+             <div>
+                <label style="color:var(--muted); font-size:12px;">Дата паспорта</label>
+                <input type="date" id="new_date" class="manage-input">
+            </div>
+        </div>
+        
+        <button class="auth-btn" style="background:var(--good); color:#000; margin-top:20px; width:100%; padding:15px; font-size:16px;" onclick="submitNewObject()">💾 Сохранить в базу данных</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 5. PROFILE ================= -->
+  <section id="profile">
+    <div class="card">
+      <h2>Профиль пользователя</h2>
+      
+      <!-- This div is filled by JS (Name, Email, Role) -->
+      <div id="profileContent"></div>
+
+      <!-- This div stays separate so it doesn't get deleted -->
+      <div id="telegramSection" class="expert-only" style="margin-top:20px; display:none; border-top:1px solid #333; padding-top:20px;">
+          <h3 style="color:#0088cc">Telegram Уведомления</h3>
+          <p style="font-size:12px; color:#aaa">Подключите бота для получения уведомлений о критических уровнях.</p>
+          
+          <div id="tgStatusText" style="margin-bottom:10px; font-weight:bold; color:var(--warn)">Статус: Проверка...</div>
+          
+          <div style="display:flex; gap:10px; flex-wrap:wrap;">
+              <button class="auth-btn" style="background:#0088cc" onclick="connectTelegram()">🔗 Подключить Telegram</button>
+              <button class="auth-btn" style="background:#ff4f81" onclick="sendTestNotification()">🔔 Тест уведомления</button>
+              <button class="auth-btn" style="background:#ff4f4f" onclick="sendCriticalObjectsReport()">🚨 Отчет о рисках</button>
+          </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ================= 6. ASSISTANT (GEMINI) ================= -->
+  <section id="assistant">
+    <div class="card chat-card">
+      <div id="chatBox">
+        <div style="color:var(--accent); margin:10px;"><b>ИИ-Ассистент:</b> Привет! Я готов ответить на вопросы о гидрологии Казахстана.</div>
+      </div>
+      <div class="chat-input-row">
+        <input id="userMessage" type="text" placeholder="Задайте вопрос..." style="flex:1; padding:10px; border-radius:8px; border:none; background:rgba(255,255,255,0.1); color:#fff">
+        <button onclick="sendMessage()" class="auth-btn">Отправить</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 7. DATABASE PORTAL (ADDED) ================= -->
+  <section id="database">
+    <div class="db-wrapper">
+      <div style="text-align:center; color:var(--admin); border-bottom:1px solid #333; padding-bottom:15px; margin-bottom:20px;">
+        <h2 style="margin:0; font-family:'Courier New';">ADMIN CONSOLE</h2>
+        <span style="font-size:12px; opacity:0.7;">SYSTEM LOGS</span>
+      </div>
+      <div style="text-align:center; color:var(--muted); margin-bottom:20px;">
+          Этот раздел предназначен для системных администраторов для просмотра сырых логов.
+      </div>
+      
+      <!-- DB Login -->
+      <div id="dbLoginState">
+        <div class="db-login-wrap">
+          <button class="db-btn" style="background:var(--admin); color:#fff; padding:15px;" onclick="document.getElementById('dbRealLogin').style.display='block'; this.style.display='none'">CONNECT SQL SHELL</button>
+          
+          <div id="dbRealLogin" style="display:none; margin-top:20px;">
+              <h3 style="color:#fff;">LOGIN REQUIRED</h3>
+              <input type="text" id="dbAdminLogin" class="db-input" placeholder="USERNAME" autocomplete="off">
+              <input type="password" id="dbAdminPass" class="db-input" placeholder="PASSWORD" autocomplete="off">
+              <div id="dbError" style="color:red; margin-bottom:10px;"></div>
+              <button class="db-btn" onclick="checkDbLogin()">AUTHENTICATE (ADMIN)</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- DB Content -->
+      <div id="dbTableState" style="display:none;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+          <div id="dbStatusMsg" style="color:#888;"></div>
+          <button class="db-btn" style="background:#333; width:auto; margin:0;" onclick="logoutDb()">DISCONNECT</button>
+        </div>
+        
+        <div class="db-tabs">
+          <div class="db-subtab active" onclick="switchDbView('users')">USERS (SECURITY)</div>
+          <div class="db-subtab" onclick="switchDbView('water')">WATER REGISTRY (SQL)</div>
+        </div>
+
+        <!-- VIEW 1: USERS -->
+        <div id="view-users" class="db-view active">
+          <div class="db-table-container">
+            <table class="db-table">
+              <thead>
+                <tr><th>ID</th><th>NAME</th><th>EMAIL</th><th>PASS HASH</th><th id="statusHeader">STATUS</th><th id="actionHeader">ACTIONS</th></tr>
+              </thead>
+              <tbody id="userTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- VIEW 2: WATER SQL -->
+        <div id="view-water" class="db-view">
+          <div style="background:#111; padding:15px; border-radius:6px; margin-bottom:20px; border:1px solid #333;">
+            <h4 style="color:var(--admin); margin-top:0; margin-bottom:10px;">ADD NEW OBJECT TO SQL DATABASE</h4>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+              <input id="sql_name" class="db-input" placeholder="Name">
+              <input id="sql_region" class="db-input" placeholder="Region">
+              <select id="sql_type" class="db-input"><option value="lake">Lake</option><option value="reservoir">Reservoir</option><option value="canal">Canal</option><option value="other">Other</option></select>
+              <input id="sql_lat" class="db-input" type="number" placeholder="Latitude">
+              <input id="sql_lon" class="db-input" type="number" placeholder="Longitude">
+              <input id="sql_prio" class="db-input" type="number" placeholder="Priority (Score)">
+              <input id="sql_tech" class="db-input" type="number" placeholder="Condition (1-5)">
+              <input id="sql_pdf" class="db-input" placeholder="PDF Link">
+            </div>
+            <button class="db-btn" onclick="addWaterSQL()">ADD RECORD</button>
+          </div>
+          <div class="db-table-container">
+            <table class="db-table">
+              <thead><tr><th>NAME</th><th>REGION</th><th>TYPE</th><th>COORDS</th><th>COND</th><th>PDF</th></tr></thead>
+              <tbody id="waterTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- ================= CAMERA MODAL (POPUP) ================= -->
+<div id="cameraModal" class="camera-modal">
+  <div class="camera-window">
+    <div class="camera-header">
+      <div>
+        <h3 style="margin:0; color:#fff">📡 AI Camera Feed</h3>
+        <span style="font-size:11px; color:var(--good)">LIVE &bull; YOLOv8 &bull; PERSON DETECTION</span>
+      </div>
+      <button class="auth-btn" style="background:#ff4f4f;" onclick="closeCamera()">🛑 TURN OFF</button>
+    </div>
+    <!-- The Image tag that gets updated by WebSocket -->
+    <img id="cameraFeed" class="camera-display" src="" alt="Connecting...">
+    <div style="padding:10px; text-align:center; color:#666; font-size:11px; border-top:1px solid #222;">
+        System: Cam1 | Server: Localhost | Log: Active
+    </div>
+  </div>
+</div>
+
+<!-- ================= AUTH MODAL ================= -->
+<div id="authModal" class="modal">
+  <div class="modal-content">
+    <span class="close-modal" onclick="closeAuthModal()">&times;</span>
+    
+    <!-- Login Form -->
+    <div id="loginForm">
+      <h2 style="color:var(--accent)">Вход</h2>
+      <p style="font-size:12px; color:#aaa; margin-bottom:15px;">Admin: admin@hydro.com / admin123<br>Guest: guest@hydro.com / guest123</p>
+      
+      <input type="email" id="loginEmail" class="auth-input" placeholder="Email" style="margin-bottom:10px; width:100%; padding:10px;">
+      <input type="password" id="loginPass" class="auth-input" placeholder="Пароль" style="margin-bottom:10px; width:100%; padding:10px;">
+      <div id="loginError" class="error-msg"></div>
+      
+      <button class="auth-btn" style="width:100%; margin-top:15px; padding:12px;" onclick="apiLogin()">Войти</button>
+      <div style="margin-top:15px; font-size:12px; cursor:pointer; color:var(--accent);" onclick="toggleAuthMode('register')">Нет аккаунта? Регистрация</div>
+    </div>
+
+    <!-- Register Form -->
+    <div id="registerForm" class="hidden-form">
+      <h2 style="color:var(--accent)">Регистрация</h2>
+      
+      <input type="text" id="regName" class="auth-input" placeholder="Имя" style="margin-bottom:10px; width:100%; padding:10px;">
+      <input type="text" id="regSurname" class="auth-input" placeholder="Фамилия" style="margin-bottom:10px; width:100%; padding:10px;">
+      <input type="email" id="regEmail" class="auth-input" placeholder="Email" style="margin-bottom:10px; width:100%; padding:10px;">
+      <input type="password" id="regPass" class="auth-input" placeholder="Пароль" style="margin-bottom:10px; width:100%; padding:10px;">
+      <div id="regError" class="error-msg"></div>
+      
+      <button class="auth-btn" style="width:100%; margin-top:15px; padding:12px;" onclick="apiRegister()">Создать аккаунт</button>
+      <div style="margin-top:15px; font-size:12px; cursor:pointer; color:var(--accent);" onclick="toggleAuthMode('login')">Уже есть аккаунт? Вход</div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =========================================
+   1. GLOBAL DATA & VARIABLES
+   ========================================= */
+let staticWaterObjects = [
+  {id:1, name:"Озеро Балхаш", type:"озеро", region:"Карагандинская область", status:5, passportDate:"2017-05-26", coordinates:[46.5, 74.8], area:"16400 км²", volume:"112 км³"},
+  {id:2, name:"Озеро Алаколь", type:"озеро", region:"Жетысуская область", status:3, passportDate:"2020-12-25", coordinates:[46.2, 81.8], area:"2650 км²"},
+  {id:3, name:"Капчагайское вдхр", type:"водохранилище", region:"Алматинская область", status:3, passportDate:"2024-12-16", coordinates:[43.8167, 77.4833], capacity:"28140 млн м³"},
+  {id:4, name:"Бухтарминское вдхр", type:"водохранилище", region:"ВКО", status:1, passportDate:"2023-08-12", coordinates:[49.3, 84.0], area:"5490 км²"},
+  {id:5, name:"Озеро Зайсан", type:"озеро", region:"ВКО", status:5, passportDate:"2022-09-16", coordinates:[48.0, 84.0], area:"5510 км²"},
+  {id:6, name:"Шардаринское вдхр", type:"водохранилище", region:"Туркестанская область", status:5, passportDate:"2017-01-29", coordinates:[41.4, 67.9]},
+  {id:7, name:"Канал Иртыш-Караганда", type:"канал", region:"Павлодарская область", status:4, passportDate:"2017-03-09", coordinates:[49.97, 73.26], length:"458 км"},
+  {id:8, name:"Озеро Тенгиз", type:"озеро", region:"Акмолинская область", status:1, passportDate:"2021-11-16", coordinates:[50.5, 69.0], area:"1590 км²"},
+  {id:9, name:"Каспийское море", type:"озеро", region:"Атырауская область", status:3, passportDate:"2018-11-18", coordinates:[45.0, 52.0]},
+  {id:10, name:"Озеро Боровое", type:"озеро", region:"Акмолинская область", status:3, passportDate:"2016-06-20", coordinates:[53.1, 70.3]},
+  {id:11, name:"БАК (Большой Алматинский)", type:"канал", region:"Алматинская область", status:3, passportDate:"2022-11-24", coordinates:[43.45, 78.39]},
+  {id:12, name:"Озеро Сасыкколь", type:"озеро", region:"Жетысуская область", status:5, passportDate:"2024-01-18", coordinates:[46.6, 81.4]},
+  {id:13, name:"Озеро Кошкарколь", type:"озеро", region:"Жетысуская область", status:2, passportDate:"2015-04-26", coordinates:[46.5, 81.2]},
+  {id:14, name:"Озеро Жаланашколь", type:"озеро", region:"Жетысуская область", status:1, passportDate:"2022-10-20", coordinates:[45.7, 82.0]},
+  {id:15, name:"Усть-Каменогорское вдхр", type:"водохранилище", region:"ВКО", status:2, passportDate:"2017-08-08", coordinates:[49.9, 82.7]},
+  {id:16, name:"Шульбинское вдхр", type:"водохранилище", region:"Абайская область", status:2, passportDate:"2022-03-19", coordinates:[49.6, 82.5]},
+  {id:17, name:"Сергеевское вдхр", type:"водохранилище", region:"СКО", status:1, passportDate:"2023-11-02", coordinates:[53.9, 67.4]},
+  {id:18, name:"Петропавловское вдхр", type:"водохранилище", region:"СКО", status:3, passportDate:"2016-03-04", coordinates:[54.9, 69.1]},
+  {id:19, name:"Астанинское вдхр", type:"водохранилище", region:"Акмолинская область", status:2, passportDate:"2020-08-15", coordinates:[51.2, 71.4]},
+  {id:20, name:"Селетинское вдхр", type:"водохранилище", region:"Акмолинская область", status:2, passportDate:"2020-03-25", coordinates:[52.9, 72.2]},
+  {id:21, name:"Чаглинское вдхр", type:"водохранилище", region:"Акмолинская область", status:1, passportDate:"2022-05-20", coordinates:[52.0, 70.0]},
+  {id:22, name:"Интумакское вдхр", type:"водохранилище", region:"Карагандинская область", status:4, passportDate:"2024-01-31", coordinates:[48.8, 73.0]},
+  {id:23, name:"Самаркандское вдхр", type:"водохранилище", region:"Карагандинская область", status:5, passportDate:"2022-08-27", coordinates:[49.5, 73.0]},
+  {id:24, name:"Шерубай-Нуринское вдхр", type:"водохранилище", region:"Карагандинская область", status:3, passportDate:"2024-08-25", coordinates:[49.5, 73.0]},
+  {id:25, name:"Кенгирское вдхр", type:"водохранилище", region:"Улытауская область", status:1, passportDate:"2023-06-24", coordinates:[48.0, 66.0]},
+  {id:26, name:"Озеро Большое Чебачье", type:"озеро", region:"Акмолинская область", status:1, passportDate:"2016-02-20", coordinates:[53.0, 70.2]},
+  {id:27, name:"Озеро Копа", type:"озеро", region:"Кызылординская область", status:2, passportDate:"2016-08-23", coordinates:[44.9, 65.5]},
+  {id:28, name:"Озеро Сарыколь", type:"озеро", region:"СКО", status:5, passportDate:"2019-03-14", coordinates:[54.5, 69.0]},
+  {id:29, name:"Озеро Шалкар", type:"озеро", region:"ЗКО", status:2, passportDate:"2022-07-25", coordinates:[48.9, 46.8]},
+  {id:30, name:"Сев. Аральское море", type:"озеро", region:"Кызылординская область", status:3, passportDate:"2021-12-01", coordinates:[46.5, 61.0]},
+  // HPPs
+  {id:101, name:"Бухтарминская ГЭС", type:"ГЭС", region:"ВКО", status:2, passportDate:"2023-05-15", coordinates:[49.4, 84.2], capacity:"675 МВт"},
+  {id:102, name:"Усть-Каменогорская ГЭС", type:"ГЭС", region:"ВКО", status:3, passportDate:"2022-08-10", coordinates:[49.95, 82.65], capacity:"331 МВт"},
+  {id:103, name:"Шульбинская ГЭС", type:"ГЭС", region:"Абайская область", status:2, passportDate:"2023-11-20", coordinates:[49.6, 82.5], capacity:"702 МВт"},
+  {id:104, name:"Капчагайская ГЭС", type:"ГЭС", region:"Алматинская область", status:3, passportDate:"2024-02-18", coordinates:[43.82, 77.49], capacity:"364 МВт"},
+  {id:105, name:"Мойнакская ГЭС", type:"ГЭС", region:"Алматинская область", status:1, passportDate:"2023-12-05", coordinates:[43.4, 77.2], capacity:"300 МВт"},
+  {id:106, name:"Шардаринская ГЭС", type:"ГЭС", region:"Туркестанская область", status:4, passportDate:"2019-06-30", coordinates:[41.35, 67.95], capacity:"100 МВт"},
+  {id:107, name:"Тасоткульская ГЭС", type:"ГЭС", region:"Жамбылская область", status:2, passportDate:"2022-09-14", coordinates:[43.0, 71.5], capacity:"45 МВт"},
+  {id:108, name:"Астанинская ГЭС-1", type:"ГЭС", region:"Акмолинская область", status:1, passportDate:"2024-03-22", coordinates:[51.15, 71.45], capacity:"15 МВт"},
+  {id:109, name:"Астанинская ГЭС-2", type:"ГЭС", region:"Акмолинская область", status:1, passportDate:"2024-01-30", coordinates:[51.12, 71.42], capacity:"12 МВт"},
+  {id:303, name:"Кокаралская плотина", type:"плотина", region:"Кызылординская область", status:2, passportDate:"2023-02-28", coordinates:[46.2, 60.8], height:"13 м"},
+];
+
+let allWaterObjects = [...staticWaterObjects]; 
+let map, markers = [], filteredObjects = [];
+let currentUser = null; 
+let currentSort = { col: 'priorityScore', dir: 'desc' };
+
+function toggleSort(col) {
+    if (currentSort.col === col) {
+        currentSort.dir = currentSort.dir === 'desc' ? 'asc' : 'desc';
+    } else {
+        currentSort.col = col;
+        currentSort.dir = 'desc';
+    }
+    updateMap();
+}
+
+/* =========================================
+   2. INITIALIZATION & DATA FETCHING
+   ========================================= */
+async function initSystem() {
+    checkSession(); 
+    try {
+        const res = await fetch('/api/water');
+        if(res.ok) {
+            const customObjects = await res.json();
+            allWaterObjects = [...staticWaterObjects, ...customObjects];
+        }
+    } catch(e) { 
+        console.log("Backend offline or error, using only static data"); 
+    }
+
+    initMap();
+    initUI();
+    openTab('home');
+}
+
+function initUI() {
+    const regionFilter = document.getElementById('filterRegion');
+    const regions = [...new Set(allWaterObjects.map(obj => obj.region))].sort();
+    regions.forEach(region => {
+        const option = document.createElement('option');
+        option.value = region; 
+        option.textContent = region;
+        regionFilter.appendChild(option);
+    });
+    
+    const anSel = document.getElementById('analyzerObject');
+    allWaterObjects.forEach(obj => {
+        const opt = document.createElement('option');
+        opt.value = obj.id; 
+        opt.textContent = obj.name;
+        anSel.appendChild(opt);
+    });
+    
+    renderRegions();
+    applyFilters();
+}
+
+/* =========================================
+   3. ROLE-BASED ACCESS CONTROL
+   ========================================= */
+function checkSession(){
+  const u = JSON.parse(localStorage.getItem('ha_user'));
+  currentUser = u;
+  updateUIBasedOnRole();
+}
+
+function updateUIBasedOnRole() {
+    const authSec = document.getElementById('authSection');
+    const loginWall = document.getElementById('mapLoginWall');
+    const mapCont = document.getElementById('mapContainer');
+    const statsCard = document.getElementById('statsCard');
+    const expertEls = document.querySelectorAll('.expert-only');
+    const manageTab = document.getElementById('manageTab');
+    const profileContent = document.getElementById('profileContent');
+    // 1. Grab the Telegram Section
+    const telegramSection = document.getElementById('telegramSection');
+
+    // Header Logic
+    if(currentUser) {
+        const rClass = currentUser.status==='Expert'?'role-expert':'role-guest';
+        authSec.innerHTML = `<span class="user-status-badge ${rClass}">${currentUser.status}</span> <span class="user-name">${currentUser.name} ${currentUser.surname}</span> <button class="auth-btn logout-btn" onclick="logout()">Выход</button>`;
+        profileContent.innerHTML = `<p><strong>Имя:</strong> ${currentUser.name} ${currentUser.surname}</p><p><strong>Email:</strong> ${currentUser.email}</p><p><strong>Статус:</strong> <span class="priority-badge ${currentUser.status==='Expert'?'priority-high':'priority-low'}">${currentUser.status}</span></p>`;
+    } else {
+        authSec.innerHTML = `<button class="auth-btn" onclick="openAuthModal()">Войти</button>`;
+        profileContent.innerHTML = `<p>Вы не авторизованы. Пожалуйста, войдите в систему.</p>`;
+    }
+
+    // Role Logic
+    if (!currentUser) {
+        // --- NO USER ---
+        loginWall.style.display = 'block';
+        mapCont.style.display = 'none'; 
+        statsCard.style.display = 'none'; 
+        expertEls.forEach(el => el.style.display = 'none'); 
+        manageTab.classList.remove('visible'); 
+        
+        // Hide Telegram section
+        if(telegramSection) telegramSection.style.display = 'none';
+
+    } else {
+        // --- LOGGED IN ---
+        loginWall.style.display = 'none';
+        mapCont.style.display = 'block'; 
+        statsCard.style.display = 'block'; 
+        
+        if (currentUser.status === 'Expert') {
+            // EXPERT
+            expertEls.forEach(el => el.style.display = 'block'); 
+            manageTab.classList.add('visible'); 
+            
+            // SHOW Telegram section & Check status
+            if(telegramSection) {
+                telegramSection.style.display = 'block';
+                checkTelegramStatus(); // Calls the API to see if connected
+            }
+
+        } else {
+            // GUEST
+            expertEls.forEach(el => el.style.display = 'none'); 
+            manageTab.classList.remove('visible'); 
+            
+            // HIDE Telegram section
+            if(telegramSection) telegramSection.style.display = 'none';
+        }
+        
+        if(map) setTimeout(() => map.invalidateSize(), 100);
+        updateMap(); 
+    }
+}
+
+/* =========================================
+   4. MAP & FILTER LOGIC
+   ========================================= */
+function initMap() {
+    if(map) return; 
+    map = L.map('map').setView([48.0, 67.0], 5);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        attribution: '©OpenStreetMap', maxZoom: 18,
+    }).addTo(map);
+}
+
+function calculatePriorityScore(status, passportAge) { 
+    return (6 - status) * 3 + passportAge; 
+}
+
+function updateMap() {
+  markers.forEach(m => map.removeLayer(m)); 
+  markers = [];
+  
+  const tbody = document.getElementById('prioritiesTable'); 
+  if(tbody) tbody.innerHTML = '';
+  
+  let displayObjects = [...filteredObjects];
+
+  if(currentUser && currentUser.status === 'Expert') {
+      displayObjects.sort((a, b) => {
+          let valA = a[currentSort.col];
+          let valB = b[currentSort.col];
+          if(currentSort.col === 'mlProb') {
+              valA = parseFloat(valA);
+              valB = parseFloat(valB);
+          }
+          if (valA < valB) return currentSort.dir === 'asc' ? -1 : 1;
+          if (valA > valB) return currentSort.dir === 'asc' ? 1 : -1;
+          return 0;
+      });
+  }
+
+  if(currentUser && currentUser.status === 'Expert' && tbody) {
+      ['status', 'priorityScore', 'mlProb'].forEach(c => {
+          const el = document.getElementById('sort-' + c);
+          if(el) {
+              if (currentSort.col === c) {
+                  el.textContent = currentSort.dir === 'asc' ? '▲' : '▼';
+                  el.style.opacity = '1';
+              } else {
+                  el.textContent = ''; 
+              }
+          }
+      });
+
+      displayObjects.slice(0, 15).forEach(obj => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td><b style="color:#e8f9ff">${obj.name}</b></td>
+          <td>${obj.region}</td>
+          <td>${obj.type}</td>
+          <td><div style="display:flex;align-items:center;gap:6px;"><div class="status-dot status-${obj.status}"></div>${obj.status}</div></td>
+          <td><span class="priority-badge ${obj.priorityCat.class}">${obj.priorityCat.text}</span> <small>(${obj.priorityScore})</small></td>
+          <td><span style="color:${obj.mlProb>70?'#ff4f4f':(obj.mlProb>40?'#ffcc00':'#31ff62')}">${obj.mlProb}%</span></td>`;
+        row.onclick = () => openDetails(obj.id); 
+        row.style.cursor = 'pointer';
+        tbody.appendChild(row);
+      });
+  }
+
+  displayObjects.forEach(obj => {
+    const color = {1:'#00ff00', 2:'#a0ff00', 3:'#ffff00', 4:'#ff8000', 5:'#ff0000'}[obj.status] || '#ccc';
+    const icon = L.divIcon({
+      className: 'custom-icon',
+      html: `<div style="background:${color}; width:24px; height:24px; border-radius:50%; border:2px solid #fff;"></div>`,
+      iconSize: [24, 24]
+    });
+    
+    const marker = L.marker(obj.coordinates, {icon}).addTo(map);
+    
+    let popupContent = `<b>${obj.name}</b><br>Тип: ${obj.type}<br>Регион: ${obj.region}<br>`;
+    
+    if (currentUser && currentUser.status === 'Expert') {
+        popupContent += `Статус: ${obj.status}/5<br>Приоритет: ${obj.priorityCat.text}<br>ML Риск: ${obj.mlProb}%<br>`;
+        popupContent += `<button style="margin-top:5px;width:100%;padding:5px;" onclick="openDetails(${obj.id})">Полный отчет</button>`;
+    } else {
+        popupContent += `Статус: ${obj.status}/5<br><i style="color:#888; font-size:11px;">Детали доступны только экспертам</i>`;
+    }
+    
+    marker.bindPopup(popupContent);
+    markers.push(marker);
+  });
+  
+  document.getElementById('totalObjects').textContent = displayObjects.length;
+  document.getElementById('criticalObjects').textContent = displayObjects.filter(obj => obj.status >= 4).length;
+  const avg = displayObjects.reduce((acc, obj) => acc + obj.status, 0) / displayObjects.length || 0;
+  document.getElementById('avgStatus').textContent = avg.toFixed(1);
+}
+
+function applyFilters() {
+    if(!currentUser) return; 
+
+    const reg = document.getElementById('filterRegion').value;
+    const typ = document.getElementById('filterType').value;
+    const prio = document.getElementById('filterPriority').value;
+    const search = document.getElementById('searchInput').value.toLowerCase();
+
+    filteredObjects = allWaterObjects.map(obj => {
+        const pDate = obj.passportDate ? new Date(obj.passportDate) : new Date();
+        const age = Math.floor((new Date() - pDate) / (365.25 * 24 * 60 * 60 * 1000));
+        
+        const score = calculatePriorityScore(obj.status, age);
+        let cat = { level: "low", text: "НИЗКИЙ", class: "priority-low" };
+        if (score >= 12) cat = { level: "high", text: "ВЫСОКИЙ", class: "priority-high" };
+        else if (score >= 6) cat = { level: "medium", text: "СРЕДНИЙ", class: "priority-medium" };
+        
+        const ml = Math.min(99, Math.max(1, (1 / (1 + Math.exp(-0.3 * (score - 8))) * 100).toFixed(1)));
+        
+        return { 
+            ...obj, 
+            passportAge: age, 
+            priorityScore: score, 
+            priorityCat: cat, 
+            mlProb: ml
+        };
+    }).filter(obj => {
+        if (reg && obj.region !== reg) return false;
+        if (typ && obj.type !== typ) return false;
+        if (prio && currentUser.status === 'Expert' && obj.priorityCat.level !== prio) return false;
+        if (search && !obj.name.toLowerCase().includes(search)) return false;
+        return true;
+    });
+
+    if(map) updateMap();
+}
+
+function resetFilters(){ 
+    document.querySelectorAll('select').forEach(s => s.value = ''); 
+    document.getElementById('searchInput').value = ''; 
+    applyFilters(); 
+}
+
+/* =========================================
+   5. EXPERT: ADD OBJECT (SQL)
+   ========================================= */
+async function submitNewObject() {
+    if(!currentUser || currentUser.status !== 'Expert') { 
+        alert('У вас нет прав для выполнения этой операции.'); 
+        return; 
+    }
+    
+    const body = {
+        name: document.getElementById('new_name').value,
+        region: document.getElementById('new_region').value,
+        type: document.getElementById('new_type').value,
+        status: parseInt(document.getElementById('new_status').value),
+        coordinates_lat: parseFloat(document.getElementById('new_lat').value),
+        coordinates_lng: parseFloat(document.getElementById('new_lng').value),
+        area: document.getElementById('new_area').value,
+        passportDate: document.getElementById('new_date').value || new Date().toISOString().split('T')[0],
+        added_by: currentUser.email
+    };
+
+    if(!body.name || isNaN(body.coordinates_lat) || isNaN(body.coordinates_lng)) { 
+        alert('Пожалуйста, заполните обязательные поля (Название, Координаты).'); 
+        return; 
+    }
+
+    try {
+        const res = await fetch('/api/water', {
+            method: 'POST', 
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(body)
+        });
+        if(res.ok) {
+            alert('Объект успешно добавлен в базу данных!');
+            location.reload(); 
+        } else {
+            const err = await res.json();
+            alert('Ошибка сервера: ' + err.error);
+        }
+    } catch(e) { 
+        console.error(e); 
+        alert('Ошибка соединения с сервером.'); 
+    }
+}
+
+/* =========================================
+   6. AUTHENTICATION API CALLS
+   ========================================= */
+async function apiLogin(){
+  const e = document.getElementById('loginEmail').value;
+  const p = document.getElementById('loginPass').value;
+  
+  if(!e || !p) { document.getElementById('loginError').innerText = "Введите email и пароль"; return; }
+
+  try {
+    const res = await fetch('/api/login', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'}, 
+        body:JSON.stringify({email:e,password:p})
+    });
+    
+    const d = await res.json();
+    
+    if(res.ok){ 
+        localStorage.setItem('ha_user', JSON.stringify(d.user)); 
+        localStorage.setItem('ha_token', d.token);
+        closeAuthModal(); 
+        checkSession(); 
+        alert('Вход выполнен. Ваша роль: ' + d.role);
+    } else { 
+        document.getElementById('loginError').innerText = d.error || "Ошибка входа"; 
+    }
+  } catch(e) { 
+      console.error(e); 
+      document.getElementById('loginError').innerText = "Ошибка соединения";
+  }
+}
+
+async function apiRegister(){
+  const n = document.getElementById('regName').value;
+  const s = document.getElementById('regSurname').value;
+  const e = document.getElementById('regEmail').value;
+  const p = document.getElementById('regPass').value;
+  
+  if(!n || !e || !p) { document.getElementById('regError').innerText = "Заполните все поля"; return; }
+
+  try {
+    const res = await fetch('/api/register', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'}, 
+        body:JSON.stringify({name:n,surname:s,email:e,password:p})
+    });
+    
+    const d = await res.json();
+    
+    if(res.ok){ 
+        localStorage.setItem('ha_user', JSON.stringify(d.user)); 
+        localStorage.setItem('ha_token', d.token);
+        closeAuthModal(); 
+        checkSession(); 
+        alert('Регистрация успешна! Ваша роль: Guest');
+    } else { 
+        document.getElementById('regError').innerText = d.error; 
+    }
+  } catch(e) { 
+      console.error(e); 
+      document.getElementById('regError').innerText = "Ошибка соединения";
+  }
+}
+
+function logout(){ 
+    localStorage.clear(); 
+    checkSession(); 
+    openTab('home'); 
+}
+
+function openAuthModal(mode){ 
+    document.getElementById('authModal').style.display = 'flex'; 
+    toggleAuthMode(mode || 'login'); 
+}
+function closeAuthModal(){ document.getElementById('authModal').style.display = 'none'; }
+function toggleAuthMode(m){
+  document.getElementById('loginForm').style.display = m==='login'?'block':'none';
+  document.getElementById('registerForm').style.display = m==='register'?'block':'none';
+}
+
+/* =========================================
+   7. AI & CHAT UTILITIES
+   ========================================= */
+const GEMINI_KEY = "AIzaSyB2T14UKIe7b2gOMpTzvz2VIEsqh35n5ro"; 
+
+async function sendMessage(){
+  const input = document.getElementById('userMessage');
+  const txt = input.value; 
+  if(!txt) return;
+  
+  const box = document.getElementById('chatBox');
+  box.innerHTML += `<div style="text-align:right; margin:10px; color:#fff">Вы: ${txt}</div>`;
+  input.value = '';
+  
+  const context = "Ты - умный ассистент платформы HydroAtlas (Казахстан). Твоя задача - помогать инженерам и гражданам следить за уровнем воды, паводками и состоянием ГЭС. Отвечай кратко и профессионально.";
+  
+  try {
+    const r = await fetch("https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent?key="+GEMINI_KEY, {
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({
+            contents:[{parts:[{text: context + " Вопрос пользователя: " + txt}]}]
+        })
+    });
+    const d = await r.json();
+    const answer = d.candidates[0].content.parts[0].text;
+    
+    box.innerHTML += `<div style="text-align:left; margin:10px; color:#00c6ff"><b>ИИ:</b> ${answer}</div>`;
+    box.scrollTop = box.scrollHeight; 
+  } catch(e){ 
+      box.innerHTML += `<div style="color:red; margin:10px;">Ошибка: Не удалось связаться с ИИ.</div>`; 
+  }
+}
+
+function analyzeWaterLevel() {
+    const id = document.getElementById('analyzerObject').value;
+    if(!id) { alert("Выберите объект для анализа"); return; }
+    
+    const rain = parseInt(document.getElementById('rainForecast').value);
+    const lvl = parseFloat(document.getElementById('currentLevel').value);
+    
+    if(isNaN(lvl)) { alert("Введите текущий уровень"); return; }
+    
+    const rainImpact = rain * 0.08; 
+    const randomFluctuation = (Math.random() * 0.4) - 0.2;
+    const newLvl = lvl + rainImpact + randomFluctuation;
+    
+    document.getElementById('analyzerResult').classList.add('active');
+    document.getElementById('resultFinalLevel').textContent = newLvl.toFixed(2) + " м";
+    
+    const riskEl = document.getElementById('resultRiskLevel');
+    const recEl = document.getElementById('resultRecommendations');
+    
+    if(rain >= 30 || newLvl > lvl * 1.1) { 
+        riskEl.textContent = "HIGH"; 
+        riskEl.className = "risk-indicator risk-high"; 
+        recEl.innerHTML = "⚠️ <b>РЕКОМЕНДАЦИЯ:</b> Высокий риск паводка. Подготовить шлюзы к сбросу воды. Уведомить службы ЧС."; 
+    } else { 
+        riskEl.textContent = "LOW"; 
+        riskEl.className = "risk-indicator risk-low"; 
+        recEl.innerHTML = "✅ <b>РЕКОМЕНДАЦИЯ:</b> Уровень воды в пределах нормы. Продолжайте стандартный мониторинг."; 
+    }
+}
+
+function onAnalyzerObjectChange() {
+    const id = document.getElementById('analyzerObject').value;
+    if(!id) return;
+    document.getElementById('currentLevel').value = (Math.random() * 20 + 5).toFixed(1); 
+}
+
+/* =========================================
+   8. UI HELPERS & PDF LOGIC
+   ========================================= */
+function openDetails(id){
+    const obj = filteredObjects.find(o => o.id === id); 
+    if(!obj) return;
+    
+    document.getElementById('detailCard').classList.add('active');
+    document.getElementById('map').style.display = 'none';
+    
+    document.getElementById('detailTitle').textContent = obj.name;
+    document.getElementById('detailContent').innerHTML = `
+        <div class="detail-item"><span class="detail-label">Тип</span><span class="detail-value">${obj.type}</span></div>
+        <div class="detail-item"><span class="detail-label">Регион</span><span class="detail-value">${obj.region}</span></div>
+        <div class="detail-item"><span class="detail-label">Статус</span><span class="detail-value"><div class="status-dot status-${obj.status}"></div>${obj.status}/5</span></div>
+        <div class="detail-item"><span class="detail-label">Координаты</span><span class="detail-value">${obj.coordinates[0]}, ${obj.coordinates[1]}</span></div>
+        <div class="detail-item"><span class="detail-label">Площадь/Мощность</span><span class="detail-value">${obj.area || obj.capacity || 'Н/Д'}</span></div>
+        <div class="detail-item"><span class="detail-label">Дата паспорта</span><span class="detail-value">${obj.passportDate}</span></div>
+        ${obj.priorityCat ? `<div class="detail-item"><span class="detail-label">Приоритет</span><span class="detail-value">${obj.priorityCat.text}</span></div>` : ''}
+    `;
+
+    // Bind the PDF button to the current ID
+    const pdfBtn = document.getElementById('pdfBtn');
+    if(pdfBtn) {
+        // Clear previous event listeners (simple overwrite)
+        pdfBtn.onclick = function() {
+            downloadPdf(id);
+        };
+    }
+}
+
+async function downloadPdf(id) {
+    const obj = allWaterObjects.find(o => o.id === id);
+    if(!obj) return;
+    
+    const btn = document.getElementById('pdfBtn');
+    const originalText = btn.innerText;
+    btn.innerText = "⏳ Генерация...";
+    btn.disabled = true;
+
+    try {
+        const response = await fetch('/api/generate_pdf', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(obj)
+        });
+        
+        if (response.ok) {
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = "Regions Database.pdf";
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(url);
+        } else {
+            const err = await response.json();
+            alert("Ошибка сервера: " + err.error);
+        }
+    } catch (error) {
+        console.error(error);
+        alert("Ошибка соединения.");
+    } finally {
+        btn.innerText = originalText;
+        btn.disabled = false;
+    }
+}
+
+function closeDetails(){
+    document.getElementById('detailCard').classList.remove('active');
+    document.getElementById('map').style.display = 'block';
+    setTimeout(() => map.invalidateSize(), 100);
+}
+
+function openTab(id){
+    // AUTH CHECK for protected tabs
+    if(!currentUser && (id === 'manage' || id === 'database' || id === 'profile')) {
+       alert("Для доступа к этому разделу необходимо авторизоваться.");
+       openAuthModal('login');
+       return; 
+    }
+
+    document.querySelectorAll('section').forEach(s=>s.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+    document.querySelectorAll(`.tab[data-tab="${id}"]`).forEach(t => t.classList.add('active'));
+    
+    if(id==='home' && map) setTimeout(()=>map.invalidateSize(), 200);
+}
+
+/* =========================================
+   INTEGRATED FEATURE: REGION DETAILS & CHARTS
+   ========================================= */
+const regionsData = {
+  "Восточно-Казахстанская область": [
+    {name: "Бухтарминская ГЭС", type: "ГЭС", level: 42.5, coordinates: [49.4, 84.2]},
+    {name: "Усть-Каменогорская ГЭС", type: "ГЭС", level: 38.2, coordinates: [49.95, 82.65]},
+    {name: "Бухтарминское водохранилище", type: "водохранилище", level: 25.8, coordinates: [49.3, 84.0]},
+    {name: "Усть-Каменогорское водохранилище", type: "водохранилище", level: 18.3, coordinates: [49.9, 82.7]},
+    {name: "Озеро Зайсан", type: "озеро", level: 15.2, coordinates: [48.0, 84.0]}
+  ],
+  "Алматинская область": [
+    {name: "Капчагайская ГЭС", type: "ГЭС", level: 45.3, coordinates: [43.82, 77.49]},
+    {name: "Мойнакская ГЭС", type: "ГЭС", level: 41.8, coordinates: [43.4, 77.2]},
+    {name: "Капчагайское водохранилище", type: "водохранилище", level: 28.5, coordinates: [43.8167, 77.4833]},
+    {name: "Бартогайское водохранилище", type: "водохранилище", level: 22.4, coordinates: [43.2, 77.0]},
+    {name: "Большой Алматинский канал", type: "канал", level: 4.2, coordinates: [43.45, 78.39]}
+  ],
+  "Жетысуская область": [
+    {name: "Озеро Алаколь", type: "озеро", level: 13.8, coordinates: [46.2, 81.8]},
+    {name: "Озеро Сасыкколь", type: "озеро", level: 11.2, coordinates: [46.6, 81.4]},
+    {name: "Таскаралинское водохранилище", type: "водохранилище", level: 14.7, coordinates: [45.5, 79.5]}
+  ],
+  "Туркестанская область": [
+    {name: "Шардаринская ГЭС", type: "ГЭС", level: 36.8, coordinates: [41.35, 67.95]},
+    {name: "Шардаринское водохранилище", type: "водохранилище", level: 24.3, coordinates: [41.4, 67.9]},
+    {name: "Коксарайское водохранилище", type: "водохранилище", level: 19.8, coordinates: [42.5, 68.5]}
+  ],
+  "Акмолинская область": [
+    {name: "Астанинская ГЭС-1", type: "ГЭС", level: 8.5, coordinates: [51.15, 71.45]},
+    {name: "Астанинское водохранилище", type: "водохранилище", level: 15.2, coordinates: [51.2, 71.4]},
+    {name: "Вячеславское водохранилище", type: "водохранилище", level: 12.8, coordinates: [51.18, 71.35]},
+    {name: "Озеро Боровое", type: "озеро", level: 8.3, coordinates: [53.1, 70.3]}
+  ],
+  "Карагандинская область": [
+    {name: "Озеро Балхаш", type: "озеро", level: 14.2, coordinates: [46.5, 74.8]},
+    {name: "Самаркандское водохранилище", type: "водохранилище", level: 18.7, coordinates: [49.5, 73.0]},
+    {name: "Шерубай-Нуринское водохранилище", type: "водохранилище", level: 12.9, coordinates: [49.5, 73.0]}
+  ],
+  "Абайская область": [
+    {name: "Шульбинская ГЭС", type: "ГЭС", level: 39.5, coordinates: [49.6, 82.5]},
+    {name: "Шульбинское водохранилище", type: "водохранилище", level: 26.8, coordinates: [49.6, 82.5]}
+  ],
+  "СКО": [
+    {name: "Сергеевское водохранилище", type: "водохранилище", level: 21.5, coordinates: [53.9, 67.4]},
+    {name: "Петропавловское водохранилище", type: "водохранилище", level: 8.9, coordinates: [54.9, 69.1]}
+  ],
+  "Костанайская область": [
+    {name: "Каратомарское водохранилище", type: "водохранилище", level: 19.8, coordinates: [53.5, 63.0]},
+    {name: "Амангельдинское водохранилище", type: "водохранилище", level: 14.2, coordinates: [52.5, 65.5]}
+  ],
+  "Атырауская область": [
+    {name: "Каспийское море", type: "озеро", level: -27.5, coordinates: [45.0, 52.0]},
+    {name: "Исатайское водохранилище", type: "водохранилище", level: 9.7, coordinates: [47.2, 51.9]}
+  ],
+  "ЗКО": [
+    {name: "Чапаевское водохранилище", type: "водохранилище", level: 14.3, coordinates: [49.8, 51.5]},
+    {name: "Озеро Шалкар", type: "озеро", level: 8.9, coordinates: [48.9, 46.8]}
+  ],
+  "Кызылординская область": [
+    {name: "Северное Аральское море", type: "озеро", level: 42.1, coordinates: [46.5, 61.0]},
+    {name: "Кокаралская плотина", type: "плотина", level: 13.5, coordinates: [46.2, 60.8]}
+  ],
+  "Жамбылская область": [
+    {name: "Тасоткульская ГЭС", type: "ГЭС", level: 28.7, coordinates: [43.0, 71.5]},
+    {name: "Кировское водохранилище", type: "водохранилище", level: 13.2, coordinates: [42.8, 71.8]}
+  ],
+  "Мангистауская область": [
+    {name: "Актау-Мангыстауский комплекс", type: "гидроузел", level: 5.2, coordinates: [43.65, 51.15]}
+  ]
+};
+
+function renderRegions() {
+  const grid = document.getElementById('regionsGrid');
+  if (!grid) return;
+  grid.innerHTML = '';
+
+  // --- ADDED: TEST CAMERA BUTTON ---
+  grid.innerHTML += `
+      <div class="region-tile tile-test-cam" onclick="startCameraFeed()">
+        <div class="region-title" style="color:#ff00cc">🎥 TEST AI CAMERA</div>
+        <div style="font-size:12px;color:#ffccff">Live YOLO Stream</div>
+        <div style="margin-top:8px;font-size:11px;color:#aaa">Click to connect</div>
+      </div>
+  `;
+
+  Object.keys(regionsData).forEach(region => {
+    const facilities = regionsData[region];
+    grid.innerHTML += `
+      <div class="region-tile" onclick="openRegion('${region}')">
+        <div class="region-title">${region}</div>
+        <div style="font-size:12px;color:#888">${facilities.length} гидрообъектов</div>
+        <div style="margin-top:8px;font-size:11px;color:#aaa">
+          Нажмите для подробностей
+        </div>
+      </div>
+    `;
+  });
+}
+
+function openRegion(region) {
+  if (!currentUser) {
+     document.getElementById('mapLoginWall').style.display = 'block'; 
+     alert("Для просмотра деталей необходимо авторизоваться.");
+     return;
+  }
+
+  const regionPageTitle = document.getElementById('regionPageTitle');
+  const stationsGrid = document.getElementById('stationsGrid');
+
+  if (regionPageTitle) regionPageTitle.innerText = `${region}`;
+  if (stationsGrid) {
+    stationsGrid.innerHTML = '';
+
+    const facilities = regionsData[region] || [];
+    facilities.forEach(facility => {
+      let borderClass = 'station-border-green';
+      if (facility.level > 20) borderClass = 'station-border-yellow';
+      if (facility.level > 40) borderClass = 'station-border-red';
+
+      stationsGrid.innerHTML += `
+        <div class="station-card ${borderClass}">
+          <div onclick="openFacility('${region}', '${facility.name}')">
+              <div class="station-name">${facility.name}</div>
+              <div style="font-size:13px; color:#aaa">
+                Тип: ${facility.type}<br>
+                Уровень: <span style="color:#fff">${facility.level.toFixed(1)} м</span>
+              </div>
+          </div>
+          <!-- ADDED BUTTON HERE -->
+          <button class="btn-cam-obj" onclick="showDummyCameraMessage()">📷 Показать камеру</button>
+        </div>
+      `;
+    });
+  }
+  openTab('regionPage');
+}
+
+let myChart = null;
+function openFacility(region, facilityName) {
+  const facilities = regionsData[region] || [];
+  const facility = facilities.find(f => f.name === facilityName);
+  if (!facility) return;
+
+  const stationTitle = document.getElementById('stationTitle');
+  const stationInfo = document.getElementById('stationInfo');
+
+  if (stationTitle) stationTitle.innerText = facilityName;
+  if (stationInfo) stationInfo.innerHTML = `Регион: ${region} | Тип: ${facility.type} | Текущий уровень: <b>${facility.level.toFixed(2)} м</b>`;
+
+  const history = generateHistoricalData(facility);
+
+  const ctx = document.getElementById('chartCanvas');
+  if (!ctx) return;
+
+  const chartCtx = ctx.getContext('2d');
+  if (myChart) myChart.destroy();
+
+  const hours = Array.from({length: 24}, (_, i) => `${i}:00`);
+
+  myChart = new Chart(chartCtx, {
+    type: 'line',
+    data: {
+      labels: hours,
+      datasets: [{
+        label: 'Уровень воды (м) - за 24ч',
+        data: history,
+        borderColor: '#00c6ff',
+        backgroundColor: 'rgba(0,198,255,0.1)',
+        tension: 0.3,
+        pointRadius: 3,
+        fill: true
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        x: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#aaa' } },
+        y: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#aaa' } }
+      },
+      plugins: {
+        legend: { labels: { color: '#aaa' } }
+      }
+    }
+  });
+
+  openTab('stationPage');
+}
+
+function generateHistoricalData(facility) {
+  const baseLevel = facility.level;
+  const data = [];
+  for (let i = 0; i < 24; i++) {
+    let variation = 0;
+    if (facility.type === 'ГЭС') variation = Math.sin(i/6) * 0.8 + Math.random() * 0.4;
+    else if (facility.type === 'водохранилище') variation = Math.sin(i/12) * 0.5 + Math.random() * 0.3;
+    else variation = Math.random() * 0.2;
+    
+    data.push(baseLevel + variation);
+  }
+  return data;
+}
+
+/* =========================================
+   DATABASE ADMIN LOGIC
+   ========================================= */
+const ADMIN_USER = "adminpo25k";
+const ADMIN_PASS = "team38flow3";
+let isAdminMode = false;
+
+function checkDbLogin() {
+  const user = document.getElementById('dbAdminLogin').value;
+  const pass = document.getElementById('dbAdminPass').value;
+  if (user === ADMIN_USER && pass === ADMIN_PASS) {
+    loadDbInterface(true);
+  } else {
+    document.getElementById('dbError').textContent = "Access Denied";
+  }
+}
+
+function loginDbGuest() {
+  loadDbInterface(false);
+}
+
+function logoutDb() {
+  document.getElementById('dbTableState').style.display = 'none';
+  document.getElementById('dbLoginState').style.display = 'block';
+  document.getElementById('dbRealLogin').style.display = 'none';
+  document.querySelector('.db-login-wrap button').style.display = 'block';
+}
+
+function loadDbInterface(admin) {
+  isAdminMode = admin;
+  document.getElementById('dbLoginState').style.display = 'none';
+  document.getElementById('dbTableState').style.display = 'block';
+  document.getElementById('dbStatusMsg').innerHTML = admin ? "MODE: <b>SUPER-ADMIN</b> [DECRYPTED]" : "MODE: GUEST [ENCRYPTED]";
+  switchDbView('users');
+}
+
+function switchDbView(view) {
+  document.querySelectorAll('.db-view').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.db-subtab').forEach(el => el.classList.remove('active'));
+  document.getElementById('view-' + view).classList.add('active');
+  event.target.classList.add('active');
+
+  if (view === 'users') loadUsers();
+  if (view === 'water') loadWater();
+}
+
+function decrypt(text) {
+    try {
+        return decodeURIComponent(atob(text));
+    } catch(e) {
+        return text;
+    }
+}
+
+function encrypt(text) {
+    return btoa(encodeURIComponent(text));
+}
+
+// ----------------------------------------------------
+// FIXED FUNCTION: TOGGLE ROLE WITH CACHE BUSTING
+// ----------------------------------------------------
+async function toggleRole(email) {
+    try {
+        const res = await fetch('/api/update_role', {
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({email: email})
+        });
+        
+        if (res.ok) {
+            const data = await res.json();
+            
+            // If we updated the currently logged in user, update local storage
+            if (currentUser && currentUser.email === email) {
+                currentUser.status = data.new_role;
+                localStorage.setItem('ha_user', JSON.stringify(currentUser));
+                checkSession(); // Update UI Header
+                alert("Your own role has been updated to: " + data.new_role);
+            }
+            
+            // Reload table with cache busting to see changes immediately
+            await loadUsers(); 
+        } else {
+            const d = await res.json();
+            alert("Error: " + d.error);
+        }
+    } catch(e) {
+        console.error(e);
+        alert("Connection failed");
+    }
+}
+
+// ----------------------------------------------------
+// FIXED FUNCTION: LOAD USERS WITH CACHE BUSTING
+// ----------------------------------------------------
+async function loadUsers() {
+  try {
+    // Added timestamp to prevent browser caching
+    const response = await fetch('/api/users?t=' + new Date().getTime());
+    const users = await response.json();
+
+    const tableBody = document.getElementById('userTableBody');
+    if (!tableBody) return;
+
+    tableBody.innerHTML = '';
+
+    const statusHeader = document.getElementById('statusHeader');
+    const actionHeader = document.getElementById('actionHeader');
+
+    if (statusHeader) statusHeader.style.display = isAdminMode ? 'table-cell' : 'none';
+    if (actionHeader) actionHeader.style.display = isAdminMode ? 'table-cell' : 'none';
+
+    users.forEach((user, index) => {
+      let name, email, pass;
+      if (isAdminMode) {
+        name = `<span class="decrypted-text">${user.name} ${user.surname}</span>`;
+        email = `<span class="decrypted-text">${user.email}</span>`;
+        pass = `<span class="decrypted-text">${decrypt(user.pass)}</span>`;
+      } else {
+        name = `<span class="encrypted-text">${encrypt(user.name)}</span>`;
+        email = `<span class="encrypted-text">${encrypt(user.email)}</span>`;
+        pass = `<span class="encrypted-text">${user.pass.substr(0,10)}...</span>`;
+      }
+
+      const action = isAdminMode ?
+        `<button class="db-btn" style="padding:4px;width:auto;font-size:10px" onclick="toggleRole('${user.email}')">SWAP ROLE</button>` :
+        '-';
+
+      tableBody.innerHTML += `
+        <tr>
+          <td>${index + 1}</td>
+          <td>${name}</td>
+          <td>${email}</td>
+          <td>${pass}</td>
+          ${isAdminMode ? `<td>${user.status}</td><td>${action}</td>` : ''}
+        </tr>
+      `;
+    });
+  } catch (error) {
+    console.error('Ошибка загрузки пользователей:', error);
+  }
+}
+
+async function loadWater() {
+  try {
+    const response = await fetch('/api/water');
+    const data = await response.json();
+    const tableBody = document.getElementById('waterTableBody');
+
+    if (!tableBody) return;
+
+    tableBody.innerHTML = '';
+
+    data.forEach(w => {
+      tableBody.innerHTML += `
+        <tr>
+          <td>${w.name}</td>
+          <td>${w.region}</td>
+          <td>${w.type || w.resource_type}</td>
+          <td>${w.coordinates ? w.coordinates.join(', ') : (w.latitude + ',' + w.longitude)}</td>
+          <td>${w.status || w.technical_condition}</td>
+          <td>-</td>
+        </tr>
+      `;
+    });
+  } catch (error) {
+    console.error('Ошибка загрузки водных объектов:', error);
+  }
+}
+
+async function addWaterSQL() {
+    if (!isAdminMode) { alert("Read Only"); return; }
+    alert("Use the 'Management' tab to add objects safely.");
+}
+/* =========================================
+   TELEGRAM INTEGRATION LOGIC
+   ========================================= */
+const TELEGRAM_BOT_USERNAME = "HydroAtlasMonitorBot"; // REPLACE WITH YOUR BOT USERNAME
+
+function connectTelegram() {
+    alert(`1. Перейдите в Telegram.\n2. Найдите бота @${TELEGRAM_BOT_USERNAME}\n3. Нажмите Start или отправьте /start\n4. Нажмите кнопку 'Подключить аккаунт'`);
+    window.open(`https://t.me/${TELEGRAM_BOT_USERNAME}`, '_blank');
+}
+
+async function checkTelegramStatus() {
+    if(!currentUser) return;
+    try {
+        const res = await fetch('/api/telegram/status', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({email: currentUser.email})
+        });
+        const data = await res.json();
+        const statTxt = document.getElementById('tgStatusText');
+        if(statTxt) {
+            if(data.connected) {
+                statTxt.innerHTML = `<span style="color:var(--good)">✅ Подключен (ID: ${data.telegram_id})</span>`;
+            } else {
+                statTxt.innerHTML = `<span style="color:var(--warn)">❌ Не подключен</span>`;
+            }
+        }
+    } catch(e) { console.error(e); }
+}
+
+async function sendTestNotification() {
+    if(!currentUser) return;
+    try {
+        const res = await fetch('/api/telegram/test', {
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({user_email: currentUser.email})
+        });
+        if(res.ok) alert("Тестовое уведомление отправлено!");
+        else alert("Ошибка: Telegram не подключен.");
+    } catch(e) { alert("Ошибка сети"); }
+}
+
+async function sendCriticalObjectsReport() {
+    // Find objects with status 4 or 5
+    const critical = allWaterObjects.filter(o => o.status >= 4);
+    if(critical.length === 0) { alert("Нет критических объектов (Статус 4 или 5)."); return; }
+    
+    try {
+        const res = await fetch('/api/telegram/report', {
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({objects: critical, user_email: currentUser.email})
+        });
+        if(res.ok) alert("Отчет отправлен в Telegram!");
+        else alert("Ошибка отправки.");
+    } catch(e) { alert("Ошибка сети"); }
+}
+
+/* =========================================
+   CAMERA LOGIC (NEW SECTION)
+   ========================================= */
+let camSocket = null;
+
+function showDummyCameraMessage() {
+    alert("🛠️ This camera is being updated. Please check back later.");
+}
+
+function startCameraFeed() {
+    const modal = document.getElementById('cameraModal');
+    const img = document.getElementById('cameraFeed');
+    modal.style.display = 'flex';
+    
+    // Determine WebSocket URL (ws:// or wss://)
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const host = window.location.host;
+    const wsUrl = `${protocol}//${host}/ws/live_camera`;
+
+    console.log("Connecting to AI Camera:", wsUrl);
+    
+    // Connect
+    camSocket = new WebSocket(wsUrl);
+    
+    camSocket.onopen = function() {
+        console.log("✅ Camera WebSocket Connected");
+        // Clear previous image
+        img.src = "";
+    };
+    
+    camSocket.onmessage = function(event) {
+        // We receive Base64 string from server, set it as image source
+        img.src = "data:image/jpeg;base64," + event.data;
+    };
+    
+    camSocket.onclose = function() {
+        console.log("Camera WebSocket Disconnected");
+    };
+    
+    camSocket.onerror = function(error) {
+        console.error("WebSocket Error:", error);
+        alert("Error connecting to camera. Is the server running and is your webcam accessible?");
+    };
+}
+
+function closeCamera() {
+    document.getElementById('cameraModal').style.display = 'none';
+    if (camSocket) {
+        camSocket.close();
+        camSocket = null;
+    }
+}
+
+initSystem();
+</script>
+</body>
+</html>
